@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NHCE Library</title>
+  <style>
+    :root{
+      --bg:#ffffff;--fg:#111;--card:#f4f4f6;--accent:#0b63d6;
+    }
+    [data-theme="dark"]{ --bg:#0b1020; --fg:#e6eef8; --card:#0f1724; --accent:#5fb0ff }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:var(--bg); color:var(--fg); min-height:100vh;}
+    header{padding:18px 20px;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;align-items:center;justify-content:space-between;background:linear-gradient(90deg,transparent, rgba(0,0,0,0.02));}
+    .brand{font-weight:700;display:flex;gap:12px;align-items:center}
+    .brand h1{font-size:18px;margin:0}
+    main{padding:20px;max-width:900px;margin:0 auto}
+    .welcome{padding:18px;border-radius:12px;background:var(--card);box-shadow:0 6px 20px rgba(0,0,0,0.04);display:flex;justify-content:space-between;align-items:center}
+    .controls{display:flex;gap:8px}
+    button{background:var(--accent);border:0;color:white;padding:8px 12px;border-radius:8px;cursor:pointer}
+    button.ghost{background:transparent;color:var(--fg);border:1px solid rgba(0,0,0,0.08)}
+    .folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:18px}
+    .folder{padding:14px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);cursor:pointer;border:1px solid rgba(0,0,0,0.06);display:flex;justify-content:space-between;align-items:center}
+    .folder .left{display:flex;gap:12px;align-items:center}
+    .badge{font-size:12px;padding:6px;border-radius:8px;background:rgba(0,0,0,0.06)}
+    .admin-actions{display:flex;gap:6px}
+    input,select{padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.09);background:transparent;color:var(--fg)}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center}
+    .modal .card{background:var(--bg);padding:20px;border-radius:12px;min-width:320px}
+    .small{font-size:13px;color:rgba(0,0,0,0.6)}
+    footer{padding:16px;text-align:center;color:rgba(0,0,0,0.5)}
+    a.unlink{color:inherit;text-decoration:none}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="4" fill="var(--accent)"/></svg>
+      <h1>NHCE Library</h1>
+    </div>
+    <div class="controls">
+      <label><input id="themeToggle" type="checkbox"> Dark</label>
+      <button id="exportBtn" class="ghost">Export</button>
+      <button id="importBtn" class="ghost">Import</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="welcome">
+      <div>
+        <div style="font-weight:800;font-size:20px">Welcome To NHCE Library!</div>
+        <div class="small">Open folders to go to their public Google Drive links.</div>
+      </div>
+      <div style="text-align:right">
+        <div class="small">Role: <span id="roleLabel">Guest</span></div>
+        <div id="librarianHint" class="small" style="display:none">(You are logged in as Librarian)</div>
+      </div>
+    </div>
+
+    <section id="adminPanel" style="margin-top:16px;display:none">
+      <h3>Manage Folders</h3>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input id="newName" placeholder="Subject / Folder name">
+        <input id="newLink" placeholder="Google Drive folder link (must be public)">
+        <button id="addFolder">Add</button>
+      </div>
+      <div style="margin-top:10px;font-size:13px;color:rgba(0,0,0,0.6)">Tip: Use the public 'Share' link of the Drive folder. When a user opens the folder it will redirect to that Drive link.</div>
+    </section>
+
+    <section id="folders" class="folder-grid" aria-live="polite" style="margin-top:18px"></section>
+
+  </main>
+
+  <footer>
+    NHCE Library • Static client-only demo
+  </footer>
+
+  <!-- Login / Role modal -->
+  <div id="roleModal" class="modal" style="display:flex">
+    <div class="card">
+      <h3>Log in as</h3>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button id="asStudent" class="ghost">Student</button>
+        <button id="asLibrarian">Librarian</button>
+      </div>
+      <p class="small" style="margin-top:12px">If you are the librarian you will need the librarian username & password.</p>
+    </div>
+  </div>
+
+  <!-- Librarian auth modal -->
+  <div id="authModal" class="modal" style="display:none">
+    <div class="card" id="authCard">
+      <h3 id="authTitle">Librarian Login</h3>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+        <input id="authUser" placeholder="Username">
+        <input id="authPass" type="password" placeholder="Password">
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="authCancel" class="ghost">Cancel</button>
+          <button id="authOk">OK</button>
+        </div>
+        <div id="firstSetupMsg" class="small" style="display:none">No librarian account found. This will create the librarian account (saved to browser). You can export it so other devices can import it.</div>
+      </div>
+    </div>
+  </div>
+
+  <input id="fileInput" type="file" accept="application/json" style="display:none">
+
+<script>
+/*
+ Client-only NHCE Library
+ - Folders stored in localStorage key 'nhce_folders' as array of {id,name,link}
+ - Librarian credentials stored in localStorage key 'nhce_librarian' as {username,hash}
+ - There are default credentials you can change inside the HTML before hosting (see DEFAULT_* below) if you want a universal credential across devices.
+*/
+
+// ===== CONFIG (edit in the file before hosting if you want fixed credentials) =====
+const DEFAULT_LIB_USERNAME = null; // e.g. 'librarian' - set to null to require setup on first login
+const DEFAULT_LIB_PASSWORD = null; // e.g. 'changeme' - set to null to require setup on first login
+// If you set the two above (not null) then those credentials will work on any device where this HTML file is hosted unchanged.
+// =================================================================================
+
+// util: simple SHA-256 helper
+async function sha256(str){
+  const buf = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// DOM
+const roleModal = document.getElementById('roleModal');
+const authModal = document.getElementById('authModal');
+const authTitle = document.getElementById('authTitle');
+const firstSetupMsg = document.getElementById('firstSetupMsg');
+const roleLabel = document.getElementById('roleLabel');
+const librarianHint = document.getElementById('librarianHint');
+const adminPanel = document.getElementById('adminPanel');
+const foldersEl = document.getElementById('folders');
+const newName = document.getElementById('newName');
+const newLink = document.getElementById('newLink');
+const addFolder = document.getElementById('addFolder');
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const fileInput = document.getElementById('fileInput');
+const themeToggle = document.getElementById('themeToggle');
+
+let ROLE = 'guest'; // guest | student | librarian
+
+// storage helpers
+function loadFolders(){
+  try{const raw = localStorage.getItem('nhce_folders'); return raw?JSON.parse(raw):[];}catch(e){return []}
+}
+function saveFolders(arr){localStorage.setItem('nhce_folders', JSON.stringify(arr));}
+
+async function loadLibrarian(){
+  // check localStorage first
+  const raw = localStorage.getItem('nhce_librarian');
+  if(raw){try{return JSON.parse(raw);}catch(e){}}
+  // if not found and DEFAULT_* provided, derive hash from defaults
+  if(DEFAULT_LIB_USERNAME && DEFAULT_LIB_PASSWORD){
+    const h = await sha256(DEFAULT_LIB_USERNAME + '::' + DEFAULT_LIB_PASSWORD);
+    return {username: DEFAULT_LIB_USERNAME, hash:h, source:'default'};
+  }
+  return null;
+}
+
+async function saveLibrarian(obj){
+  localStorage.setItem('nhce_librarian', JSON.stringify(obj));
+}
+
+// render folders
+function renderFolders(){
+  const arr = loadFolders();
+  foldersEl.innerHTML='';
+  if(arr.length===0){foldersEl.innerHTML='<div class="small">No folders yet. (Librarian can add subjects.)</div>';return}
+  arr.forEach(f=>{
+    const item = document.createElement('div'); item.className='folder';
+    item.innerHTML = `<div class="left"><div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(180deg,rgba(0,0,0,0.03),transparent);display:flex;align-items:center;justify-content:center;font-weight:700">${f.name.slice(0,1).toUpperCase()}</div><div><div style="font-weight:700">${escapeHtml(f.name)}</div><div class="small">${f.link}</div></div></div>`;
+    item.addEventListener('click', (ev)=>{
+      // if click on admin button, don't open
+      if(ev.target.closest('.admin-actions')) return;
+      // open link in new tab
+      if(f.link) window.open(f.link, '_blank');
+    });
+
+    const actions = document.createElement('div'); actions.className='admin-actions';
+    const openBtn = document.createElement('button'); openBtn.textContent='Open'; openBtn.className='ghost';
+    openBtn.addEventListener('click',(e)=>{e.stopPropagation(); window.open(f.link,'_blank');});
+    actions.appendChild(openBtn);
+
+    if(ROLE==='librarian'){
+      const rename = document.createElement('button'); rename.textContent='Rename'; rename.className='ghost';
+      rename.addEventListener('click',(e)=>{ e.stopPropagation(); const nm = prompt('New folder name', f.name); if(nm){f.name=nm; saveThis(); renderFolders();} });
+      const editlink = document.createElement('button'); editlink.textContent='Edit Link'; editlink.className='ghost';
+      editlink.addEventListener('click',(e)=>{ e.stopPropagation(); const nl = prompt('Drive link (public)', f.link); if(nl){f.link=nl; saveThis(); renderFolders();} });
+      const del = document.createElement('button'); del.textContent='Delete'; del.className='ghost';
+      del.addEventListener('click',(e)=>{ e.stopPropagation(); if(confirm('Delete this folder?')){ const a = loadFolders(); const idx = a.findIndex(x=>x.id===f.id); if(idx>=0){a.splice(idx,1); saveFolders(a); renderFolders();} } });
+      actions.appendChild(rename); actions.appendChild(editlink); actions.appendChild(del);
+    }
+    item.appendChild(actions);
+    foldersEl.appendChild(item);
+  })
+  function saveThis(){
+    const arr = loadFolders(); const idx = arr.findIndex(x=>x.id===f.id); if(idx>=0) arr[idx]=f; else arr.push(f); saveFolders(arr);
+  }
+}
+
+// helpers
+function escapeHtml(s){return s.replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]))}
+
+// initial setup
+(async function init(){
+  // theme
+  const t = localStorage.getItem('nhce_theme') || 'light'; document.documentElement.setAttribute('data-theme', t); themeToggle.checked = (t==='dark');
+  themeToggle.addEventListener('change',()=>{const val = themeToggle.checked?'dark':'light'; document.documentElement.setAttribute('data-theme',val); localStorage.setItem('nhce_theme', val);});
+
+  // role modal buttons
+  document.getElementById('asStudent').addEventListener('click', ()=>{ ROLE='student'; roleModal.style.display='none'; roleLabel.textContent='Student'; librarianHint.style.display='none'; renderUI(); });
+  document.getElementById('asLibrarian').addEventListener('click', async ()=>{ roleModal.style.display='none'; await showAuth(); });
+
+  document.getElementById('authCancel').addEventListener('click', ()=>{ authModal.style.display='none'; roleModal.style.display='flex'; });
+  document.getElementById('authOk').addEventListener('click', async ()=>{ const user = document.getElementById('authUser').value.trim(); const pass = document.getElementById('authPass').value; if(!user||!pass){alert('Enter username and password');return}
+    const existing = await loadLibrarian();
+    if(!existing){ // first setup
+      const h = await sha256(user+'::'+pass);
+      await saveLibrarian({username:user,hash:h});
+      ROLE='librarian'; authModal.style.display='none'; roleLabel.textContent='Librarian'; librarianHint.style.display='block'; renderUI(); return;
+    }
+    // verify
+    const h2 = await sha256(user+'::'+pass);
+    if(h2===existing.hash && user===existing.username){ ROLE='librarian'; authModal.style.display='none'; roleLabel.textContent='Librarian'; librarianHint.style.display='block'; renderUI(); return; }
+    alert('Invalid username or password');
+  });
+
+  // add folder
+  addFolder.addEventListener('click', ()=>{
+    const name = newName.value.trim(); const link = newLink.value.trim(); if(!name || !link){alert('Enter name and link');return}
+    const arr = loadFolders(); arr.push({id:Date.now().toString(36),name,link}); saveFolders(arr); newName.value=''; newLink.value=''; renderFolders();
+  });
+
+  // export/import
+  exportBtn.addEventListener('click', ()=>{
+    const data = {folders:loadFolders(), librarian:localStorage.getItem('nhce_librarian')?JSON.parse(localStorage.getItem('nhce_librarian')):null};
+    const blob = new Blob([JSON.stringify(data, null, 2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='nhce_library_export.json'; a.click(); URL.revokeObjectURL(url);
+  });
+  importBtn.addEventListener('click', ()=>fileInput.click());
+  fileInput.addEventListener('change', async (e)=>{
+    const f = e.target.files[0]; if(!f) return; const txt = await f.text(); try{ const data = JSON.parse(txt);
+      if(data.folders) saveFolders(data.folders);
+      if(data.librarian) localStorage.setItem('nhce_librarian', JSON.stringify(data.librarian));
+      alert('Import complete'); renderFolders();
+    }catch(err){alert('Invalid file')}
+    fileInput.value='';
+  });
+
+  // show folders
+  renderFolders();
+  // show role modal
+  roleModal.style.display='flex';
+})();
+
+async function showAuth(){
+  const existing = await loadLibrarian();
+  if(!existing){
+    authTitle.textContent='Create Librarian Account';
+    firstSetupMsg.style.display='block';
+  }else{
+    authTitle.textContent='Librarian Login';
+    firstSetupMsg.style.display='none';
+  }
+  authModal.style.display='flex';
+}
+
+function renderUI(){
+  if(ROLE==='librarian'){ adminPanel.style.display='block'; document.getElementById('roleLabel').textContent='Librarian'; librarianHint.style.display='block'; }
+  else{ adminPanel.style.display='none'; if(ROLE==='student') document.getElementById('roleLabel').textContent='Student'; else document.getElementById('roleLabel').textContent='Guest'; librarianHint.style.display='none'; }
+  renderFolders();
+}
+</script>
+</body>
+</html>
